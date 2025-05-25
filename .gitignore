@@ -2,6 +2,10 @@
 .env
 .env.*
 
+# Firebase credentials
+firebase-credentials.json
+*-firebase-adminsdk-*.json
+
 # Python
 __pycache__/
 *.py[cod]
