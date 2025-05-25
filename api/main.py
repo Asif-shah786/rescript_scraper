@@ -1,6 +1,6 @@
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
-from typing import List
+from typing import List, Optional
 import firebase_admin
 from firebase_admin import credentials, firestore
 import json
@@ -8,6 +8,8 @@ import os
 from dotenv import load_dotenv
 import sys
 import os
+from datetime import datetime
+import uuid
 
 # Add the parent directory to sys.path to import the scraper
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -18,27 +20,8 @@ from Data_Script.working import (
 # Load environment variables
 load_dotenv()
 
-# Initialize Firebase Admin SDK
-private_key = os.getenv("FIREBASE_PRIVATE_KEY")
-if private_key:
-    private_key = private_key.replace("\\n", "\n")
-
-cred = credentials.Certificate(
-    {
-        "type": os.getenv("FIREBASE_TYPE"),
-        "project_id": os.getenv("FIREBASE_PROJECT_ID"),
-        "private_key_id": os.getenv("FIREBASE_PRIVATE_KEY_ID"),
-        "private_key": private_key,
-        "client_email": os.getenv("FIREBASE_CLIENT_EMAIL"),
-        "client_id": os.getenv("FIREBASE_CLIENT_ID"),
-        "auth_uri": os.getenv("FIREBASE_AUTH_URI"),
-        "token_uri": os.getenv("FIREBASE_TOKEN_URI"),
-        "auth_provider_x509_cert_url": os.getenv(
-            "FIREBASE_AUTH_PROVIDER_X509_CERT_URL"
-        ),
-        "client_x509_cert_url": os.getenv("FIREBASE_CLIENT_X509_CERT_URL"),
-    }
-)
+# Initialize Firebase Admin
+cred = credentials.Certificate("firebase-credentials.json")
 firebase_admin.initialize_app(cred)
 db = firestore.client()
 
@@ -47,12 +30,17 @@ app = FastAPI(title="Medication Scraper API")
 
 class MedicationRequest(BaseModel):
     medications: List[str]
+    run_id: Optional[str] = None  # Optional run ID for tracking multiple scraping runs
 
 
 @app.post("/scrape-medications")
 async def scrape_and_store_medications(request: MedicationRequest):
     try:
         print(f"\nReceived request to scrape medications: {request.medications}")
+
+        # Generate a unique run ID if not provided
+        run_id = request.run_id or str(uuid.uuid4())
+        timestamp = datetime.utcnow()
 
         # Run the scraper with the provided medications
         print("Starting scraper...")
@@ -65,9 +53,28 @@ async def scrape_and_store_medications(request: MedicationRequest):
         # Store results in Firestore
         print("Storing results in Firestore...")
         batch = db.batch()
+
+        # Create a run metadata document
+        run_metadata = {
+            "run_id": run_id,
+            "timestamp": timestamp,
+            "medications_requested": request.medications,
+            "medications_scraped": len(results),
+            "status": "completed",
+        }
+        run_doc_ref = db.collection("scraping_runs").document(run_id)
+        batch.set(run_doc_ref, run_metadata)
+
         for medication_data in results:
+            # Add metadata to each medication record
+            medication_data.update(
+                {"scraped_at": timestamp, "run_id": run_id, "source": "admin_portal"}
+            )
+
             # Create a document reference with the medication name as ID
-            doc_ref = db.collection("medications").document(medication_data["name"])
+            doc_ref = db.collection("draft_medications").document(
+                medication_data["name"]
+            )
             batch.set(doc_ref, medication_data)
             print(f"Added {medication_data['name']} to batch")
 
@@ -76,15 +83,17 @@ async def scrape_and_store_medications(request: MedicationRequest):
         batch.commit()
         print("Batch committed successfully")
 
-        # Save results locally to a JSON file
-        print("Saving results locally...")
-        with open("medication_data.json", "w") as f:
-            json.dump(results, f, indent=2)
-        print("Results saved locally")
+        # # Save results locally to a JSON file
+        # print("Saving results locally...")
+        # with open("medication_data.json", "w") as f:
+        #     json.dump(results, f, indent=2)
+        # print("Results saved locally")
 
         return {
             "status": "success",
             "message": f"Successfully scraped and stored {len(results)} medications",
+            "run_id": run_id,
+            "timestamp": timestamp.isoformat(),
             "medications": results,
         }
     except Exception as e:
