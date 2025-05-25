@@ -23,32 +23,59 @@ load_dotenv()
 # Initialize Firebase Admin
 try:
     # Try to use environment variables first
+    required_env_vars = [
+        "FIREBASE_PROJECT_ID",
+        "FIREBASE_PRIVATE_KEY_ID",
+        "FIREBASE_PRIVATE_KEY",
+        "FIREBASE_CLIENT_EMAIL",
+        "FIREBASE_CLIENT_ID",
+        "FIREBASE_CLIENT_X509_CERT_URL",
+        "FIREBASE_TYPE",
+        "FIREBASE_AUTH_URI",
+        "FIREBASE_TOKEN_URI",
+        "FIREBASE_AUTH_PROVIDER_X509_CERT_URL",
+    ]
+
+    # Check if all required environment variables are present
+    missing_vars = [var for var in required_env_vars if not os.getenv(var)]
+    if missing_vars:
+        print(f"Missing required environment variables: {', '.join(missing_vars)}")
+        print("Please set these variables in your Render environment settings")
+        raise ValueError(
+            f"Missing required environment variables: {', '.join(missing_vars)}"
+        )
+
     cred_dict = {
-        "type": "service_account",
+        "type": os.getenv("FIREBASE_TYPE"),
         "project_id": os.getenv("FIREBASE_PROJECT_ID"),
         "private_key_id": os.getenv("FIREBASE_PRIVATE_KEY_ID"),
         "private_key": os.getenv("FIREBASE_PRIVATE_KEY", "").replace("\\n", "\n"),
         "client_email": os.getenv("FIREBASE_CLIENT_EMAIL"),
         "client_id": os.getenv("FIREBASE_CLIENT_ID"),
-        "auth_uri": "https://accounts.google.com/o/oauth2/auth",
-        "token_uri": "https://oauth2.googleapis.com/token",
-        "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
-        "client_x509_cert_url": os.getenv("FIREBASE_CLIENT_CERT_URL"),
+        "auth_uri": os.getenv("FIREBASE_AUTH_URI"),
+        "token_uri": os.getenv("FIREBASE_TOKEN_URI"),
+        "auth_provider_x509_cert_url": os.getenv(
+            "FIREBASE_AUTH_PROVIDER_X509_CERT_URL"
+        ),
+        "client_x509_cert_url": os.getenv("FIREBASE_CLIENT_X509_CERT_URL"),
     }
 
-    # Check if all required environment variables are present
-    if all(cred_dict.values()):
-        cred = credentials.Certificate(cred_dict)
-    else:
-        # Fall back to JSON file for local development
-        cred = credentials.Certificate("firebase-credentials.json")
+    # Add universe_domain if it exists
+    if os.getenv("FIREBASE_UNIVERSE_DOMAIN"):
+        cred_dict["universe_domain"] = os.getenv("FIREBASE_UNIVERSE_DOMAIN")
+
+    print("Initializing Firebase with credentials...")
+    cred = credentials.Certificate(cred_dict)
+    firebase_admin.initialize_app(cred)
+    db = firestore.client()
+    print("Firebase initialized successfully with environment variables")
 
 except Exception as e:
-    print(f"Error initializing Firebase: {e}")
+    print(f"Error initializing Firebase: {str(e)}")
+    print(
+        "Please make sure all required environment variables are set in your Render environment settings"
+    )
     raise
-
-firebase_admin.initialize_app(cred)
-db = firestore.client()
 
 app = FastAPI(title="Medication Scraper API")
 
