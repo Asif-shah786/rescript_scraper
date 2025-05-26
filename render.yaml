@@ -7,4 +7,4 @@ services:
       ./render-build.sh
     startCommand: |
       export PATH="${PATH}:/opt/render/project/.render/chrome/opt/google/chrome"
-      python your_start_script.py
+      python your_start_script.py  # Replace with your actual start script
