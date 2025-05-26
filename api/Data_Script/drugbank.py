@@ -7,6 +7,7 @@ from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import NoSuchElementException, TimeoutException
+import os
 
 
 def get_drugbank_info(medication_name):
@@ -25,6 +26,12 @@ def get_drugbank_info(medication_name):
         "--disable-gpu"
     )  # Required for headless mode on some systems
     chrome_options.add_argument("--window-size=1920,1080")  # Set a standard window size
+
+    # Set Chrome binary location for Render
+    if os.path.exists("/opt/render/project/.render/chrome/opt/google/chrome/chrome"):
+        chrome_options.binary_location = (
+            "/opt/render/project/.render/chrome/opt/google/chrome/chrome"
+        )
 
     # Initialize the driver
     driver = webdriver.Chrome(options=chrome_options)
