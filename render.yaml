@@ -1,0 +1,10 @@
+services:
+  - type: web
+    name: rescript-scraper
+    env: python
+    buildCommand: |
+      chmod +x render-build.sh
+      ./render-build.sh
+    startCommand: |
+      export PATH="${PATH}:/opt/render/project/.render/chrome/opt/google/chrome"
+      python your_start_script.py
