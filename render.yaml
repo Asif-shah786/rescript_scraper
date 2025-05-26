@@ -2,9 +2,7 @@ services:
   - type: web
     name: rescript-scraper
     env: python
-    buildCommand: |
-      chmod +x render-build.sh
-      ./render-build.sh
-    startCommand: |
-      export PATH="${PATH}:/opt/render/project/.render/chrome/opt/google/chrome"
-      python your_start_script.py  # Replace with your actual start script
+    buildCommand: chmod +x start.sh
+    startCommand: ./start.sh
+    region: oregon
+    plan: free
