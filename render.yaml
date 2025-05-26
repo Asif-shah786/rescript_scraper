@@ -2,7 +2,18 @@ services:
   - type: web
     name: rescript-scraper
     env: python
-    buildCommand: chmod +x start.sh
-    startCommand: ./start.sh
+    buildCommand: |
+      chmod +x start.sh
+      sudo chown root:root start.sh
+      sudo chmod 755 start.sh
+    startCommand: |
+      export DISPLAY=:99
+      Xvfb :99 -screen 0 1024x768x16 &
+      ./start.sh
     region: oregon
     plan: free
+    envVars:
+      - key: PYTHONUNBUFFERED
+        value: "1"
+      - key: DISPLAY
+        value: ":99"
