@@ -4,7 +4,7 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.chrome.options import Options
-from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support.wait import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import NoSuchElementException, TimeoutException
 import os
@@ -27,14 +27,9 @@ def get_drugbank_info(medication_name):
     )  # Required for headless mode on some systems
     chrome_options.add_argument("--window-size=1920,1080")  # Set a standard window size
 
-    # Set Chrome binary location for Render
-    if os.path.exists("/opt/render/project/.render/chrome/opt/google/chrome/chrome"):
-        chrome_options.binary_location = (
-            "/opt/render/project/.render/chrome/opt/google/chrome/chrome"
-        )
-
-    # Initialize the driver
-    driver = webdriver.Chrome(options=chrome_options)
+    # Initialize the driver with ChromeDriver from /usr/local/bin
+    service = Service("/usr/local/bin/chromedriver")
+    driver = webdriver.Chrome(service=service, options=chrome_options)
     wait_time = 15  # Max time to wait for elements in seconds
 
     result = {"metabolism": "N/A", "route_of_elimination": "N/A"}
