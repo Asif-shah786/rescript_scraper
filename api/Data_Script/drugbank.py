@@ -52,6 +52,7 @@ def get_drugbank_info(medication_name):
         # Initialize the driver with ChromeDriver from /usr/local/bin
         service = Service("/usr/local/bin/chromedriver")
         logger.info("Initializing Chrome driver...")
+        driver = None  # Initialize driver as None
         driver = webdriver.Chrome(service=service, options=chrome_options)
         logger.info("Chrome driver initialized successfully")
 
@@ -116,9 +117,11 @@ def get_drugbank_info(medication_name):
 
     except Exception as e:
         logger.error(f"An error occurred while scraping DrugBank: {e}")
+        return {"metabolism": "N/A", "route_of_elimination": "N/A"}
 
     finally:
         logger.info("Closing the browser...")
-        driver.quit()
+        if driver is not None:  # Only quit if driver was initialized
+            driver.quit()
 
     return result
