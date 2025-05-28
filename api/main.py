@@ -158,8 +158,12 @@ async def scrape_and_store_medications(request: MedicationRequest):
 
             # Use an auto-generated document reference for draft_medications
             doc_ref = db.collection("draft_medications").document()
+            # Ensure name field exists for querying and identification
+            medication_data["name"] = medication_data.get("name", "Unknown Medication")
             batch.set(doc_ref, medication_data)
-            print(f"Added medication with ID {doc_ref.id} to batch")
+            print(
+                f"Added medication with ID {doc_ref.id} (Name: {medication_data['name']}) to batch"
+            )
 
         # Commit the batch
         print("Committing batch to Firestore...")
