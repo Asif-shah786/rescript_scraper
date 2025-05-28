@@ -11,11 +11,17 @@ import os
 from datetime import datetime
 import uuid
 
+# Add CORS middleware import
+from fastapi.middleware.cors import CORSMiddleware
+
+# Add import for running synchronous code in background thread
+from starlette.concurrency import run_in_threadpool
+
 # Add the parent directory to sys.path to import the scraper
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from Data_Script.working import (
     scrape_medications,
-)  # Note: The actual directory has a space, but Python module names can't have spaces
+)
 
 # Load environment variables
 load_dotenv()
@@ -79,14 +85,32 @@ except Exception as e:
 
 app = FastAPI(title="Medication Scraper API")
 
+# Add CORS middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "https://rescriptapp.web.app",  # Allow your deployed Flutter app origin
+        "http://localhost:XXXX",  # Optional: Add your local Flutter web dev origin for testing
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],  # Allow all methods (POST, GET, OPTIONS)
+    allow_headers=["*"],  # Allow all headers
+)
+
 
 class MedicationRequest(BaseModel):
     medications: List[str]
     run_id: Optional[str] = None  # Optional run ID for tracking multiple scraping runs
 
 
-@app.post("/scrape-medications")
+# Use api_route to explicitly allow POST and OPTIONS methods
+@app.api_route("/scrape-medications", methods=["POST", "OPTIONS"])
 async def scrape_and_store_medications(request: MedicationRequest):
+    # This check is usually not needed when CORS is properly configured with OPTIONS allowed
+    # but we can keep it for robustness if needed.
+    # if request.method == "OPTIONS":
+    #    return {"message": "OK"}
+
     try:
         print(f"\nReceived request to scrape medications: {request.medications}")
 
@@ -94,13 +118,21 @@ async def scrape_and_store_medications(request: MedicationRequest):
         run_id = request.run_id or str(uuid.uuid4())
         timestamp = datetime.utcnow()
 
-        # Run the scraper with the provided medications
-        print("Starting scraper...")
-        results = scrape_medications(request.medications)
+        # Run the synchronous scraper in a background thread
+        print("Starting scraper in background thread...")
+        results = await run_in_threadpool(scrape_medications, request.medications)
         print(f"Scraper completed. Got {len(results)} results.")
 
         if not results:
             raise HTTPException(status_code=500, detail="No data was scraped")
+
+        # Filter out any results that have errors
+        valid_results = [r for r in results if "error" not in r]
+
+        if not valid_results:
+            raise HTTPException(
+                status_code=500, detail="All medication scraping attempts failed"
+            )
 
         # Store results in Firestore
         print("Storing results in Firestore...")
@@ -111,24 +143,29 @@ async def scrape_and_store_medications(request: MedicationRequest):
             "run_id": run_id,
             "timestamp": timestamp,
             "medications_requested": request.medications,
-            "medications_scraped": len(results),
+            "medications_scraped": len(valid_results),
+            "medications_failed": len(results) - len(valid_results),
             "status": "completed",
         }
         run_doc_ref = db.collection("scraping_runs").document(run_id)
         batch.set(run_doc_ref, run_metadata)
 
-        for medication_data in results:
+        for medication_data in valid_results:
             # Add metadata to each medication record
             medication_data.update(
                 {"scraped_at": timestamp, "run_id": run_id, "source": "admin_portal"}
             )
 
-            # Create a document reference with the medication name as ID
-            doc_ref = db.collection("draft_medications").document(
-                medication_data["name"]
-            )
+            # Use an auto-generated document reference for draft_medications
+            doc_ref = db.collection("draft_medications").document()
+            # Store the medication name as a field within the document
+            medication_data["name"] = medication_data.get(
+                "name", "Unknown Medication"
+            )  # Ensure name field exists
             batch.set(doc_ref, medication_data)
-            print(f"Added {medication_data['name']} to batch")
+            print(
+                f"Added medication with ID {doc_ref.id} (Name: {medication_data.get('name', 'N/A')}) to batch"
+            )
 
         # Commit the batch
         print("Committing batch to Firestore...")
@@ -143,13 +180,14 @@ async def scrape_and_store_medications(request: MedicationRequest):
 
         return {
             "status": "success",
-            "message": f"Successfully scraped and stored {len(results)} medications",
+            "message": f"Successfully scraped and stored {len(valid_results)} medications",
             "run_id": run_id,
             "timestamp": timestamp.isoformat(),
-            "medications": results,
+            "medications": valid_results,
         }
     except Exception as e:
         print(f"Error in scrape_and_store_medications: {str(e)}")
+        # Catch specific exceptions for better error messages if needed
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -158,7 +196,17 @@ async def root():
     return {"message": "Medication Scraper API is running"}
 
 
+# IMPORTANT: You still need to implement the /scrape-medications/status/{run_id} endpoint
+# for your Flutter app to be able to poll for scraping progress.
+
 if __name__ == "__main__":
     import uvicorn
 
-    uvicorn.run(app, host="0.0.0.0", port=8001)
+    # Use host="0.0.0.0" and port from environment variable if running on Render
+    # For local development, you might use host="127.0.0.1" and a fixed port
+    # Example for Render:
+    # port = int(os.environ.get("PORT", 8000))
+    # uvicorn.run(app, host="0.0.0.0", port=port)
+    uvicorn.run(
+        app, host="0.0.0.0", port=8001
+    )  # Assuming port 8001 is configured on Render
