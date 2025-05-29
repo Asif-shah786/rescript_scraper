@@ -26,6 +26,7 @@ def get_drugbank_info(medication_name):
     Returns a dictionary with the scraped data.
     """
     logger.info(f"\nScraping DrugBank for {medication_name}...")
+    driver = None  # Initialize driver at the start of the function
 
     # Print environment information
     logger.info("Environment information:")
@@ -34,10 +35,11 @@ def get_drugbank_info(medication_name):
 
     # Check Chrome and ChromeDriver paths
     chromedriver_path = os.getenv(
-        "CHROMEDRIVER_PATH", "/opt/render/project/src/.local/bin/chromedriver"
+        "CHROMEDRIVER_PATH",
+        "/usr/local/bin/chromedriver",  # Updated default path for Docker
     )
     chrome_bin = os.getenv(
-        "CHROME_BIN", "/opt/render/project/src/.local/chrome/opt/google/chrome/chrome"
+        "CHROME_BIN", "/usr/bin/google-chrome"  # Updated default path for Docker
     )
 
     logger.info(f"ChromeDriver path: {chromedriver_path}")
@@ -85,7 +87,7 @@ def get_drugbank_info(medication_name):
         logger.info(f"Using ChromeDriver at: {chromedriver_path}")
         service = Service(chromedriver_path)
         logger.info("Initializing Chrome driver...")
-        driver = None  # Initialize driver as None
+
         try:
             driver = webdriver.Chrome(service=service, options=chrome_options)
             logger.info("Chrome driver initialized successfully")
@@ -94,7 +96,6 @@ def get_drugbank_info(medication_name):
             return {"metabolism": "N/A", "route_of_elimination": "N/A"}
 
         wait_time = 15  # Max time to wait for elements in seconds
-
         result = {"metabolism": "N/A", "route_of_elimination": "N/A"}
 
         logger.info(f"Navigating to DrugBank...")
@@ -158,7 +159,10 @@ def get_drugbank_info(medication_name):
 
     finally:
         logger.info("Closing the browser...")
-        if driver is not None:  # Only quit if driver was initialized
-            driver.quit()
+        if driver is not None:
+            try:
+                driver.quit()
+            except Exception as e:
+                logger.error(f"Error closing browser: {e}")
 
     return result
