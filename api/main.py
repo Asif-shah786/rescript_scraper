@@ -124,15 +124,25 @@ async def scrape_and_store_medications(request: MedicationRequest):
         print(f"Scraper completed. Got {len(results)} results.")
 
         if not results:
-            raise HTTPException(status_code=500, detail="No data was scraped")
+            raise HTTPException(
+                status_code=500,
+                detail={
+                    "error": "No data was scraped",
+                    "medications": request.medications,
+                },
+            )
 
         # Filter out any results that have errors
         valid_results = [r for r in results if "error" not in r]
+        failed_results = [r for r in results if "error" in r]
 
         if not valid_results:
-            raise HTTPException(
-                status_code=500, detail="All medication scraping attempts failed"
-            )
+            error_details = {
+                "error": "All medication scraping attempts failed",
+                "medications": request.medications,
+                "failed_results": failed_results,
+            }
+            raise HTTPException(status_code=500, detail=error_details)
 
         # Store results in Firestore
         print("Storing results in Firestore...")
@@ -185,8 +195,12 @@ async def scrape_and_store_medications(request: MedicationRequest):
         }
     except Exception as e:
         print(f"Error in scrape_and_store_medications: {str(e)}")
-        # Catch specific exceptions for better error messages if needed
-        raise HTTPException(status_code=500, detail=str(e))
+        error_details = {
+            "error": str(e),
+            "medications": request.medications,
+            "timestamp": datetime.utcnow().isoformat(),
+        }
+        raise HTTPException(status_code=500, detail=error_details)
 
 
 @app.get("/")

@@ -1,22 +1,7 @@
 services:
   - type: web
     name: rescript-scraper
-    env: python
-    buildCommand: |
-      chmod +x render-build.sh
-      ./render-build.sh
-    startCommand: |
-      # Set up environment variables
-      export DISPLAY=:99
-      export PATH=$PATH:/opt/render/project/src/.local/bin
-      export CHROME_BIN=/opt/render/project/src/.local/chrome/opt/google/chrome/chrome
-      export CHROMEDRIVER_PATH=/opt/render/project/src/.local/bin/chromedriver
-
-      # Start Xvfb
-      Xvfb :99 -screen 0 1024x768x16 &
-
-      # Start the application
-      ./start.sh
+    env: docker
     region: oregon
     plan: free
     envVars:
@@ -25,6 +10,6 @@ services:
       - key: DISPLAY
         value: ":99"
       - key: CHROME_BIN
-        value: "/opt/render/project/src/.local/chrome/opt/google/chrome/chrome"
+        value: "/usr/bin/google-chrome"
       - key: CHROMEDRIVER_PATH
-        value: "/opt/render/project/src/.local/bin/chromedriver"
+        value: "/usr/local/bin/chromedriver"
