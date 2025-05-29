@@ -258,10 +258,24 @@ def scrape_medications(medications: List[str]) -> List[Dict]:
 
             # Get FDA data
             print(f"Getting FDA data for {medication}...")
-            search_url = f"{openfda_base_url}?search=openfda.brand_name:{medication}"
-            response = requests.get(search_url)
-            response.raise_for_status()
-            data = response.json()
+            try:
+                search_url = (
+                    f"{openfda_base_url}?search=openfda.brand_name:{medication}"
+                )
+                response = requests.get(search_url)
+                response.raise_for_status()
+                data = response.json()
+            except requests.exceptions.HTTPError as e:
+                if e.response.status_code == 404:
+                    print(f"Medication {medication} not found in FDA database")
+                    medication_data[medication] = {
+                        "name": medication,
+                        "error": f"Medication not found in FDA database: {str(e)}",
+                        "error_type": "FDA_NOT_FOUND",
+                    }
+                    continue
+                else:
+                    raise
 
             if data.get("results"):
                 result = data["results"][0]
@@ -333,7 +347,12 @@ def scrape_medications(medications: List[str]) -> List[Dict]:
 
         except Exception as e:
             print(f"Error processing {medication}: {e}")
-            medication_data[medication] = {"name": medication, "error": str(e)}
+            medication_data[medication] = {
+                "name": medication,
+                "error": str(e),
+                "error_type": type(e).__name__,
+                "error_source": "scraper",
+            }
 
         # Be nice to the APIs
         time.sleep(1)

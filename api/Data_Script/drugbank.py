@@ -47,6 +47,15 @@ def get_drugbank_info(medication_name):
     logger.info(f"DISPLAY environment variable: {os.environ.get('DISPLAY')}")
     logger.info(f"PATH environment variable: {os.environ.get('PATH')}")
 
+    # List contents of ChromeDriver directory
+    chromedriver_dir = os.path.dirname(chromedriver_path)
+    if os.path.exists(chromedriver_dir):
+        logger.info(f"Contents of {chromedriver_dir}:")
+        for item in os.listdir(chromedriver_dir):
+            logger.info(f"  - {item}")
+    else:
+        logger.error(f"ChromeDriver directory {chromedriver_dir} does not exist")
+
     try:
         # Configure Chrome options for headless mode
         chrome_options = Options()
@@ -77,8 +86,12 @@ def get_drugbank_info(medication_name):
         service = Service(chromedriver_path)
         logger.info("Initializing Chrome driver...")
         driver = None  # Initialize driver as None
-        driver = webdriver.Chrome(service=service, options=chrome_options)
-        logger.info("Chrome driver initialized successfully")
+        try:
+            driver = webdriver.Chrome(service=service, options=chrome_options)
+            logger.info("Chrome driver initialized successfully")
+        except Exception as e:
+            logger.error(f"Failed to initialize Chrome driver: {e}")
+            return {"metabolism": "N/A", "route_of_elimination": "N/A"}
 
         wait_time = 15  # Max time to wait for elements in seconds
 
