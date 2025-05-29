@@ -31,8 +31,21 @@ def get_drugbank_info(medication_name):
     logger.info("Environment information:")
     logger.info(f"Python version: {sys.version}")
     logger.info(f"Current working directory: {os.getcwd()}")
-    logger.info(f"ChromeDriver path: {os.path.exists('/usr/local/bin/chromedriver')}")
+
+    # Check Chrome and ChromeDriver paths
+    chromedriver_path = os.getenv(
+        "CHROMEDRIVER_PATH", "/opt/render/project/src/.local/bin/chromedriver"
+    )
+    chrome_bin = os.getenv(
+        "CHROME_BIN", "/opt/render/project/src/.local/chrome/opt/google/chrome/chrome"
+    )
+
+    logger.info(f"ChromeDriver path: {chromedriver_path}")
+    logger.info(f"ChromeDriver exists: {os.path.exists(chromedriver_path)}")
+    logger.info(f"Chrome binary path: {chrome_bin}")
+    logger.info(f"Chrome binary exists: {os.path.exists(chrome_bin)}")
     logger.info(f"DISPLAY environment variable: {os.environ.get('DISPLAY')}")
+    logger.info(f"PATH environment variable: {os.environ.get('PATH')}")
 
     try:
         # Configure Chrome options for headless mode
@@ -49,8 +62,19 @@ def get_drugbank_info(medication_name):
             "--disable-features=IsolateOrigins,site-per-process"
         )
 
-        # Initialize the driver with ChromeDriver from /usr/local/bin
-        service = Service("/usr/local/bin/chromedriver")
+        # Set binary location
+        if os.path.exists(chrome_bin):
+            chrome_options.binary_location = chrome_bin
+            logger.info(f"Using Chrome binary at: {chrome_bin}")
+        else:
+            logger.warning(f"Chrome binary not found at {chrome_bin}")
+
+        # Initialize the driver with ChromeDriver
+        if not os.path.exists(chromedriver_path):
+            raise Exception(f"ChromeDriver not found at {chromedriver_path}")
+
+        logger.info(f"Using ChromeDriver at: {chromedriver_path}")
+        service = Service(chromedriver_path)
         logger.info("Initializing Chrome driver...")
         driver = None  # Initialize driver as None
         driver = webdriver.Chrome(service=service, options=chrome_options)
