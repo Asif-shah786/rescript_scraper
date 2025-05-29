@@ -10,6 +10,8 @@ services:
       - key: DISPLAY
         value: ":99"
       - key: CHROME_BIN
-        value: "/usr/bin/google-chrome"
+        value: "/usr/bin/google-chrome-stable"
       - key: CHROMEDRIVER_PATH
         value: "/usr/local/bin/chromedriver"
+      - key: PATH
+        value: "/usr/local/bin:/usr/bin:/bin"
