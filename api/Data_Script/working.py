@@ -5,6 +5,7 @@ from collections import defaultdict
 import time
 from pprint import pprint
 from .drugbank import get_drugbank_info
+from .summarizer import generate_summary
 from typing import Dict, List
 
 MEDICATIONS = [
@@ -335,6 +336,59 @@ def scrape_medications(medications: List[str]) -> List[Dict]:
                     "narrow_pharmacologic_class": classes["pharmacologic_class"],
                     "metabolism": drugbank_info["metabolism"],
                     "route_of_elimination": drugbank_info["route_of_elimination"],
+                    "off_label_uses": "N/A",  # New field for manual filling
+                    # Detailed fields
+                    "indications_and_usage": label_data.get(
+                        "indications_and_usage", "N/A"
+                    ),
+                    "dosage_and_administration": label_data.get(
+                        "dosage_and_administration", "N/A"
+                    ),
+                    "mechanism_of_action": label_data.get("mechanism_of_action", "N/A"),
+                    "adverse_reactions": label_data.get("adverse_reactions", "N/A"),
+                    "drug_interactions": label_data.get("drug_interactions", "N/A"),
+                    "contraindications": label_data.get("contraindications", "N/A"),
+                    "pregnancy": label_data.get("pregnancy", "N/A"),
+                    "pediatric_use": label_data.get("pediatric_use", "N/A"),
+                    "geriatric_use": label_data.get("geriatric_use", "N/A"),
+                    "information_for_patients": label_data.get(
+                        "information_for_patients", "N/A"
+                    ),
+                    # Summary fields
+                    "indications_and_usage_summary": generate_summary(
+                        label_data.get("indications_and_usage", "N/A")
+                    ),
+                    "dosage_and_administration_summary": generate_summary(
+                        label_data.get("dosage_and_administration", "N/A")
+                    ),
+                    "mechanism_of_action_summary": generate_summary(
+                        label_data.get("mechanism_of_action", "N/A")
+                    ),
+                    "adverse_reactions_summary": generate_summary(
+                        label_data.get("adverse_reactions", "N/A")
+                    ),
+                    "drug_interactions_summary": generate_summary(
+                        label_data.get("drug_interactions", "N/A")
+                    ),
+                    "contraindications_summary": generate_summary(
+                        label_data.get("contraindications", "N/A")
+                    ),
+                    "pregnancy_summary": generate_summary(
+                        label_data.get("pregnancy", "N/A")
+                    ),
+                    "pediatric_use_summary": generate_summary(
+                        label_data.get("pediatric_use", "N/A")
+                    ),
+                    "geriatric_use_summary": generate_summary(
+                        label_data.get("geriatric_use", "N/A")
+                    ),
+                    "metabolism_summary": generate_summary(drugbank_info["metabolism"]),
+                    "route_of_elimination_summary": generate_summary(
+                        drugbank_info["route_of_elimination"]
+                    ),
+                    "information_for_patients_summary": generate_summary(
+                        label_data.get("information_for_patients", "N/A")
+                    ),
                     **label_data,  # Include all FDA label data
                 }
                 print(f"Successfully processed {medication}")
