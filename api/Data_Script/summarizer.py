@@ -32,7 +32,12 @@ def generate_summary_openrouter(text: str, max_length: int = 300) -> Optional[st
         # Prepare the prompt
         prompt = f"""Create a clear and concise summary of the following text. 
         Focus on the key points and main information.
-        Keep the summary under {max_length} characters.
+        
+        IMPORTANT LENGTH REQUIREMENTS:
+        - The summary MUST be close to {max_length} characters
+        - Do not make it shorter than {max_length - 50} characters
+        - Do not exceed {max_length} characters
+        - Count the characters in your response to ensure compliance
 
         Text to summarize:
         {text}"""
@@ -86,7 +91,12 @@ def generate_summary_gemini(text: str, max_length: int = 300) -> Optional[str]:
         # Prepare the prompt
         prompt = f"""Create a clear and concise summary of the following text. 
         Focus on the key points and main information.
-        Keep the summary under {max_length} characters.
+        
+        IMPORTANT LENGTH REQUIREMENTS:
+        - The summary MUST be close to {max_length} characters
+        - Do not make it shorter than {max_length - 50} characters
+        - Do not exceed {max_length} characters
+        - Count the characters in your response to ensure compliance
 
         Text to summarize:
         {text}"""

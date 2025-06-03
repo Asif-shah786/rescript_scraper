@@ -7,6 +7,15 @@ from pprint import pprint
 from .drugbank import get_drugbank_info
 from .summarizer import generate_summary
 from typing import Dict, List
+import logging
+
+# Set up logging
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(levelname)s - %(message)s",
+    datefmt="%H:%M:%S",
+)
+logger = logging.getLogger(__name__)
 
 MEDICATIONS = [
     "Abilify",
@@ -36,20 +45,21 @@ def make_request(url, params=None, max_retries=3, delay=1):
             time.sleep(delay)
         except Exception as e:
             if attempt == max_retries - 1:
-                print(f"Failed after {max_retries} attempts: {str(e)}")
+                logger.error(
+                    f"API request failed after {max_retries} attempts: {str(e)}"
+                )
             time.sleep(delay)
     return None
 
 
 def fetch_fda_label_data(brand_name: str, generic_name: str) -> Dict:
     """Fetch medication label data from OpenFDA API."""
+    logger.info(f"Fetching FDA label data for {brand_name} ({generic_name})")
     search_query = f'openfda.generic_name:"{generic_name}"'
-    print(f"Trying search query: {search_query}")
-
     data = make_request(openfda_label_url, params={"search": search_query, "limit": 1})
 
     if not data or not data.get("results"):
-        print(f"No label data found for {brand_name}")
+        logger.warning(f"No FDA label data found for {brand_name}")
         return {
             "brand_name": brand_name,
             "generic_name": generic_name,
@@ -57,8 +67,7 @@ def fetch_fda_label_data(brand_name: str, generic_name: str) -> Dict:
         }
 
     result = data["results"][0]
-
-    print("result", result)
+    logger.info(f"Successfully retrieved FDA label data for {brand_name}")
 
     # Extract relevant fields
     return {
@@ -139,17 +148,20 @@ def fetch_fda_label_data(brand_name: str, generic_name: str) -> Dict:
 
 def get_rxcui(drug_name):
     """Get RxCUI for a drug name"""
-    print(f"Getting RxCUI for {drug_name}...")
+    logger.info(f"Getting RxCUI for {drug_name}")
     url = f"{rxnav_base_url}/rxcui.json?name={drug_name}"
     data = make_request(url)
     if data and "idGroup" in data and "rxnormId" in data["idGroup"]:
-        return data["idGroup"]["rxnormId"][0]
+        rxcui = data["idGroup"]["rxnormId"][0]
+        logger.info(f"Found RxCUI {rxcui} for {drug_name}")
+        return rxcui
+    logger.warning(f"No RxCUI found for {drug_name}")
     return None
 
 
 def get_drug_classes(rxcui):
     """Get therapeutic and pharmacological classes"""
-    print(f"Getting drug classes for RxCUI {rxcui}...")
+    logger.info(f"Getting drug classes for RxCUI {rxcui}")
     url = f"{rxnav_base_url}/rxclass/class/byRxcui.json?rxcui={rxcui}"
     data = make_request(url)
     classes = {
@@ -170,6 +182,7 @@ def get_drug_classes(rxcui):
             elif class_type == "EPC":
                 classes["pharmacologic_class"].add(class_info["className"])
 
+    logger.info(f"Found {sum(len(v) for v in classes.values())} drug classes")
     return {k: list(v) for k, v in classes.items()}
 
 
@@ -222,30 +235,29 @@ def scrape_medications(medications: List[str]) -> List[Dict]:
     Scrape medication data from various sources and return a list of dictionaries.
     Each dictionary contains detailed information about a medication.
     """
-    print(f"\nStarting to scrape data for medications: {medications}")
+    logger.info(f"Starting to scrape data for {len(medications)} medications")
 
     try:
         # Load Orange Book data
-        print("Loading Orange Book data...")
+        logger.info("Loading Orange Book data...")
         patent_data, exclusivity_data, products_data = load_orange_book_data()
-        print("Orange Book data loaded successfully")
+        logger.info("Orange Book data loaded successfully")
     except Exception as e:
-        print(f"Error loading Orange Book data: {e}")
+        logger.error(f"Error loading Orange Book data: {e}")
         patent_data, exclusivity_data, products_data = {}, {}, {}
 
     # Dictionary to store results
     medication_data = {}
 
     for medication in medications:
-        print(f"\nProcessing {medication}...")
+        logger.info(f"\nProcessing {medication}...")
         try:
             # Get RxNorm data
             rxcui = get_rxcui(medication)
             if rxcui:
-                print(f"Found RxCUI: {rxcui}")
                 classes = get_drug_classes(rxcui)
             else:
-                print(f"Could not find RxCUI for {medication}")
+                logger.warning(f"Could not find RxCUI for {medication}")
                 classes = {
                     "broad_class": [],
                     "narrow_class": [],
@@ -253,12 +265,11 @@ def scrape_medications(medications: List[str]) -> List[Dict]:
                 }
 
             # Get DrugBank data
-            print(f"Getting DrugBank data for {medication}...")
+            logger.info(f"Getting DrugBank data for {medication}")
             drugbank_info = get_drugbank_info(medication)
-            print(f"DrugBank data retrieved: {drugbank_info}")
 
             # Get FDA data
-            print(f"Getting FDA data for {medication}...")
+            logger.info(f"Getting FDA data for {medication}")
             try:
                 search_url = (
                     f"{openfda_base_url}?search=openfda.brand_name:{medication}"
@@ -268,7 +279,7 @@ def scrape_medications(medications: List[str]) -> List[Dict]:
                 data = response.json()
             except requests.exceptions.HTTPError as e:
                 if e.response.status_code == 404:
-                    print(f"Medication {medication} not found in FDA database")
+                    logger.warning(f"Medication {medication} not found in FDA database")
                     medication_data[medication] = {
                         "name": medication,
                         "error": f"Medication not found in FDA database: {str(e)}",
@@ -391,16 +402,16 @@ def scrape_medications(medications: List[str]) -> List[Dict]:
                     ),
                     **label_data,  # Include all FDA label data
                 }
-                print(f"Successfully processed {medication}")
+                logger.info(f"Successfully processed {medication}")
             else:
-                print(f"No FDA data found for {medication}")
+                logger.warning(f"No FDA data found for {medication}")
                 medication_data[medication] = {
                     "name": medication,
                     "error": "No FDA data found",
                 }
 
         except Exception as e:
-            print(f"Error processing {medication}: {e}")
+            logger.error(f"Error processing {medication}: {e}")
             medication_data[medication] = {
                 "name": medication,
                 "error": str(e),
@@ -411,7 +422,7 @@ def scrape_medications(medications: List[str]) -> List[Dict]:
         # Be nice to the APIs
         time.sleep(1)
 
-    print(f"\nScraping complete. Processed {len(medication_data)} medications.")
+    logger.info(f"Scraping complete. Processed {len(medication_data)} medications.")
     return list(medication_data.values())
 
 
@@ -422,7 +433,7 @@ def main():
     # Save to a file
     with open("medication_data.json", "w") as f:
         json.dump(results, f, indent=2)
-    print("\nResults saved to medication_data.json")
+    logger.info("Results saved to medication_data.json")
 
 
 if __name__ == "__main__":

@@ -9,14 +9,14 @@ from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.support.wait import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-from selenium.common.exceptions import (
-    NoSuchElementException,
-    TimeoutException,
-    WebDriverException,
-)
+from selenium.common.exceptions import NoSuchElementException, TimeoutException
 
 # Set up logging
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(levelname)s - %(message)s",
+    datefmt="%H:%M:%S",
+)
 logger = logging.getLogger(__name__)
 
 
@@ -25,140 +25,186 @@ def get_drugbank_info(medication_name):
     Scrape DrugBank for metabolism and route of elimination information.
     Returns a dictionary with the scraped data.
     """
-    logger.info(f"\nScraping DrugBank for {medication_name}...")
-    driver = None  # Initialize driver at the start of the function
-
-    # Print environment information
-    logger.info("Environment information:")
-    logger.info(f"Python version: {sys.version}")
-    logger.info(f"Current working directory: {os.getcwd()}")
-
-    # Check Chrome and ChromeDriver paths
-    chromedriver_path = os.getenv(
-        "CHROMEDRIVER_PATH",
-        "/usr/local/bin/chromedriver",  # Updated default path for Docker
-    )
-    chrome_bin = os.getenv(
-        "CHROME_BIN", "/usr/bin/google-chrome"  # Updated default path for Docker
-    )
-
-    logger.info(f"ChromeDriver path: {chromedriver_path}")
-    logger.info(f"ChromeDriver exists: {os.path.exists(chromedriver_path)}")
-    logger.info(f"Chrome binary path: {chrome_bin}")
-    logger.info(f"Chrome binary exists: {os.path.exists(chrome_bin)}")
-    logger.info(f"DISPLAY environment variable: {os.environ.get('DISPLAY')}")
-    logger.info(f"PATH environment variable: {os.environ.get('PATH')}")
-
-    # List contents of ChromeDriver directory
-    chromedriver_dir = os.path.dirname(chromedriver_path)
-    if os.path.exists(chromedriver_dir):
-        logger.info(f"Contents of {chromedriver_dir}:")
-        for item in os.listdir(chromedriver_dir):
-            logger.info(f"  - {item}")
-    else:
-        logger.error(f"ChromeDriver directory {chromedriver_dir} does not exist")
+    logger.info(f"Scraping DrugBank for {medication_name}")
+    driver = None
 
     try:
         # Configure Chrome options for headless mode
         chrome_options = Options()
-        chrome_options.add_argument("--headless")
+        chrome_options.add_argument("--headless")  # Now enabled with fixes
         chrome_options.add_argument("--no-sandbox")
         chrome_options.add_argument("--disable-dev-shm-usage")
-        chrome_options.add_argument("--disable-gpu")
-        chrome_options.add_argument("--window-size=1920,1080")
-        chrome_options.add_argument("--disable-extensions")
-        chrome_options.add_argument("--disable-software-rasterizer")
-        chrome_options.add_argument("--disable-features=VizDisplayCompositor")
+        chrome_options.add_argument("--disable-gpu")  # Helps with headless stability
         chrome_options.add_argument(
-            "--disable-features=IsolateOrigins,site-per-process"
+            "--window-size=1920,1080"
+        )  # Set window size for headless
+        chrome_options.add_argument(
+            "--disable-web-security"
+        )  # May help with some sites
+        chrome_options.add_argument(
+            "--disable-features=VizDisplayCompositor"
+        )  # Stability fix
+        chrome_options.add_argument(
+            "--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
         )
 
-        # Set binary location
-        if os.path.exists(chrome_bin):
-            chrome_options.binary_location = chrome_bin
-            logger.info(f"Using Chrome binary at: {chrome_bin}")
-        else:
-            logger.warning(f"Chrome binary not found at {chrome_bin}")
+        # Initialize the driver
+        logger.info("Initializing Chrome driver")
+        driver = webdriver.Chrome(options=chrome_options)
+        wait_time = 20  # Increased wait time for headless mode
 
-        # Initialize the driver with ChromeDriver
-        if not os.path.exists(chromedriver_path):
-            raise Exception(f"ChromeDriver not found at {chromedriver_path}")
-
-        logger.info(f"Using ChromeDriver at: {chromedriver_path}")
-        service = Service(chromedriver_path)
-        logger.info("Initializing Chrome driver...")
-
-        try:
-            driver = webdriver.Chrome(service=service, options=chrome_options)
-            logger.info("Chrome driver initialized successfully")
-        except Exception as e:
-            logger.error(f"Failed to initialize Chrome driver: {e}")
-            return {"metabolism": "N/A", "route_of_elimination": "N/A"}
-
-        wait_time = 15  # Max time to wait for elements in seconds
         result = {"metabolism": "N/A", "route_of_elimination": "N/A"}
 
-        logger.info(f"Navigating to DrugBank...")
+        logger.info("Navigating to DrugBank")
         driver.get("https://go.drugbank.com/")
-        driver.maximize_window()
+
+        # Don't maximize window in headless mode
+        if not chrome_options.arguments.__contains__("--headless"):
+            driver.maximize_window()
 
         # Initialize WebDriverWait
         wait = WebDriverWait(driver, wait_time)
 
-        # Search for the medication
-        logger.info(f"Searching for '{medication_name}'...")
-        search_box_locator = (By.ID, "query")
-        search_box = wait.until(EC.presence_of_element_located(search_box_locator))
+        # Wait for page to fully load
+        time.sleep(2)
+
+        # Search for the medication with more robust approach
+        logger.info(f"Searching for {medication_name}")
+
+        # Try multiple selectors for the search box
+        search_selectors = [
+            (By.ID, "query"),
+            (By.NAME, "query"),
+            (By.CSS_SELECTOR, "input[type='search']"),
+            (By.CSS_SELECTOR, "input[placeholder*='search']"),
+            (By.XPATH, "//input[@type='search' or @type='text']"),
+        ]
+
+        search_box = None
+        for selector in search_selectors:
+            try:
+                search_box = wait.until(EC.element_to_be_clickable(selector))
+                logger.info(f"Found search box using selector: {selector[1]}")
+                break
+            except TimeoutException:
+                continue
+
+        if search_box is None:
+            raise Exception("Could not find search box")
+
+        # Clear any existing text and search
+        search_box.clear()
+        time.sleep(0.5)
         search_box.send_keys(medication_name)
+        time.sleep(1)
         search_box.send_keys(Keys.RETURN)
 
-        # Wait for the results page and find the Metabolism text
-        logger.info("Waiting for drug information page...")
-        metabolism_heading_locator = (By.ID, "metabolism")
-        wait.until(EC.presence_of_element_located(metabolism_heading_locator))
-        logger.info("Drug page loaded. Finding Metabolism info...")
+        # Wait longer for results in headless mode
+        time.sleep(3)
 
-        # Get Metabolism information
-        metabolism_text_locator = (
-            By.XPATH,
+        # Wait for the results page and find the Metabolism text
+        logger.info("Waiting for drug information page")
+
+        # Try to find metabolism section with multiple approaches
+        metabolism_found = False
+        metabolism_selectors = [
+            (By.ID, "metabolism"),
+            (By.XPATH, "//dt[@id='metabolism']"),
+            (By.XPATH, "//h3[contains(text(), 'Metabolism')]"),
+            (
+                By.XPATH,
+                "//*[contains(@id, 'metabolism') or contains(text(), 'Metabolism')]",
+            ),
+        ]
+
+        for selector in metabolism_selectors:
+            try:
+                wait.until(EC.presence_of_element_located(selector))
+                logger.info("Drug page loaded - metabolism section found")
+                metabolism_found = True
+                break
+            except TimeoutException:
+                continue
+
+        if not metabolism_found:
+            logger.warning("Could not find metabolism section")
+
+        # Get Metabolism information with multiple XPath attempts
+        metabolism_xpaths = [
             "//dt[@id='metabolism']/following-sibling::dd[1]/p[1]",
-        )
-        try:
-            metabolism_element = wait.until(
-                EC.visibility_of_element_located(metabolism_text_locator)
-            )
-            result["metabolism"] = metabolism_element.text
-            logger.info("Successfully retrieved metabolism information")
-        except (NoSuchElementException, TimeoutException):
-            logger.info("Could not find the Metabolism paragraph")
+            "//dt[@id='metabolism']/following-sibling::dd[1]",
+            "//h3[contains(text(), 'Metabolism')]/following-sibling::p[1]",
+            "//div[contains(@id, 'metabolism')]//p[1]",
+            "//*[@id='metabolism']/parent::*/following-sibling::*//p[1]",
+        ]
+
+        for xpath in metabolism_xpaths:
+            try:
+                metabolism_element = wait.until(
+                    EC.visibility_of_element_located((By.XPATH, xpath))
+                )
+                result["metabolism"] = metabolism_element.text.strip()
+                logger.info("Retrieved metabolism information")
+                break
+            except (NoSuchElementException, TimeoutException):
+                continue
+
+        if result["metabolism"] == "N/A":
+            logger.warning("Could not find metabolism information")
 
         # Get Route of Elimination information
-        logger.info("Finding Route of Elimination info...")
-        route_elimination_text_locator = (
-            By.XPATH,
-            "//dt[@id='route-of-elimination']/following-sibling::dd[1]/p[1]",
-        )
-        try:
-            route_heading_element = driver.find_element(By.ID, "route-of-elimination")
-            driver.execute_script(
-                "arguments[0].scrollIntoView(true);", route_heading_element
-            )
-            time.sleep(0.5)
+        logger.info("Getting route of elimination information")
 
-            route_element = wait.until(
-                EC.visibility_of_element_located(route_elimination_text_locator)
-            )
-            result["route_of_elimination"] = route_element.text
-            logger.info("Successfully retrieved route of elimination information")
-        except (NoSuchElementException, TimeoutException):
-            logger.info("Could not find the Route of Elimination paragraph")
+        # Scroll to route of elimination section
+        route_selectors = [
+            "route-of-elimination",
+            "elimination",
+            "route_of_elimination",
+        ]
+
+        route_found = False
+        for route_id in route_selectors:
+            try:
+                route_heading_element = driver.find_element(By.ID, route_id)
+                driver.execute_script(
+                    "arguments[0].scrollIntoView({behavior: 'smooth', block: 'center'});",
+                    route_heading_element,
+                )
+                time.sleep(1)
+                route_found = True
+                break
+            except NoSuchElementException:
+                continue
+
+        # Try multiple XPaths for route of elimination
+        route_xpaths = [
+            "//dt[@id='route-of-elimination']/following-sibling::dd[1]/p[1]",
+            "//dt[@id='route-of-elimination']/following-sibling::dd[1]",
+            "//h3[contains(text(), 'Route of Elimination')]/following-sibling::p[1]",
+            "//div[contains(@id, 'elimination')]//p[1]",
+            "//*[contains(@id, 'route') and contains(@id, 'elimination')]/parent::*/following-sibling::*//p[1]",
+        ]
+
+        for xpath in route_xpaths:
+            try:
+                route_element = wait.until(
+                    EC.visibility_of_element_located((By.XPATH, xpath))
+                )
+                result["route_of_elimination"] = route_element.text.strip()
+                logger.info("Retrieved route of elimination information")
+                break
+            except (NoSuchElementException, TimeoutException):
+                continue
+
+        if result["route_of_elimination"] == "N/A":
+            logger.warning("Could not find route of elimination information")
 
     except Exception as e:
-        logger.error(f"An error occurred while scraping DrugBank: {e}")
+        logger.error(f"Error scraping DrugBank: {e}")
         return {"metabolism": "N/A", "route_of_elimination": "N/A"}
 
     finally:
-        logger.info("Closing the browser...")
+        logger.info("Closing browser")
         if driver is not None:
             try:
                 driver.quit()
@@ -166,3 +212,10 @@ def get_drugbank_info(medication_name):
                 logger.error(f"Error closing browser: {e}")
 
     return result
+
+
+# Test the function
+if __name__ == "__main__":
+    # Test with a common medication
+    result = get_drugbank_info("Atorvastatin")
+    logger.info(f"Results: {result}")

@@ -175,12 +175,12 @@ def process_medications(medications):
 
 
 if __name__ == "__main__":
-    # Split medications into three batches
-    batch0 = [
-        "Atorvastatin",
-    ]
+    # Process only batch 1 for now
+    print("Starting with Batch 1...")
 
+    # Split medications into batches of 50
     batch1 = [
+        "Atorvastatin",
         "Metformin",
         "Lisinopril",
         "Levothyroxine",
@@ -230,6 +230,9 @@ if __name__ == "__main__":
         "Amitriptyline",
         "Lorazepam",
         "Carvedilol",
+    ]
+
+    batch2 = [
         "Clonazepam",
         "Topiramate",
         "Lamotrigine",
@@ -249,9 +252,6 @@ if __name__ == "__main__":
         "Ethosuximide",
         "Pregabalin",
         "Levetiracetam",
-    ]
-
-    batch2 = [
         "Oxcarbazepine",
         "Tiagabine",
         "Zonisamide",
@@ -283,6 +283,9 @@ if __name__ == "__main__":
         "Adalimumab",
         "Etanercept",
         "Golimumab",
+    ]
+
+    batch3 = [
         "Certolizumab",
         "Tocilizumab",
         "Anakinra",
@@ -319,9 +322,6 @@ if __name__ == "__main__":
         "Almotriptan",
         "Frovatriptan",
         "Eletriptan",
-    ]
-
-    batch3 = [
         "Dihydroergotamine",
         "Ergotamine",
         "Methysergide",
@@ -336,6 +336,9 @@ if __name__ == "__main__":
         "Amoxapine",
         "Mirtazapine",
         "Nefazodone",
+    ]
+
+    batch4 = [
         "Vilazodone",
         "Vortioxetine",
         "Desvenlafaxine",
@@ -391,4 +394,4 @@ if __name__ == "__main__":
 
     # Process only batch 1 for now
     print("Starting with Batch 1...")
-    process_medications(batch0)
+    process_medications(batch1)
