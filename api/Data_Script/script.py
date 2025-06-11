@@ -112,7 +112,6 @@ def load_orange_book_data():
             products_data[app_no].append(
                 {
                     "applicant_full_name": row["Applicant_Full_Name"],
-                    "drug_manufacturer": row["Applicant_Full_Name"],
                 }
             )
 
@@ -201,7 +200,6 @@ for medication in MEDICATIONS:
                 "current_patent_owner": product_details.get(
                     "applicant_full_name", "N/A"
                 ),
-                "drug_manufacturer": product_details.get("drug_manufacturer", "N/A"),
                 "broad_therapeutic_class": classes["broad_class"],
                 "narrow_pharmacological_class": classes["pharmacologic_class"],
                 "pharmacologic_class": classes["narrow_class"],

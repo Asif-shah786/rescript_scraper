@@ -176,10 +176,9 @@ def process_medications(medications):
 
 if __name__ == "__main__":
     # Process only batch 1 for now
-    print("Starting with Batch 1...")
-
-    # Split medications into batches of 50
-    batch1 = [
+    print("Starting with Batch 0...")
+    batch0 = [
+        "Abilify",
         "Atorvastatin",
         "Metformin",
         "Lisinopril",
@@ -189,6 +188,10 @@ if __name__ == "__main__":
         "Albuterol",
         "Losartan",
         "Omeprazole",
+    ]
+
+    # Split medications into batches of 50
+    batch1 = [
         "Gabapentin",
         "Hydrochlorothiazide",
         "Amoxicillin",
@@ -393,5 +396,5 @@ if __name__ == "__main__":
     ]
 
     # Process only batch 1 for now
-    print("Starting with Batch 1...")
-    process_medications(batch1)
+    print("Starting with Batch 0...")
+    process_medications(batch0)

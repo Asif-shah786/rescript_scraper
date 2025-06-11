@@ -37,7 +37,8 @@ def generate_summary_openrouter(text: str, max_length: int = 300) -> Optional[st
         - The summary MUST be close to {max_length} characters
         - Do not make it shorter than {max_length - 50} characters
         - Do not exceed {max_length} characters
-        - Count the characters in your response to ensure compliance
+        - Do not include character count in the summary
+        - Do not mention the length requirements in the summary
 
         Text to summarize:
         {text}"""
@@ -96,7 +97,8 @@ def generate_summary_gemini(text: str, max_length: int = 300) -> Optional[str]:
         - The summary MUST be close to {max_length} characters
         - Do not make it shorter than {max_length - 50} characters
         - Do not exceed {max_length} characters
-        - Count the characters in your response to ensure compliance
+        - Do not include character count in the summary
+        - Do not mention the length requirements in the summary
 
         Text to summarize:
         {text}"""

@@ -15,7 +15,19 @@ pip install -r requirements.txt
    - Generate a new private key
    - Save the JSON file as `firebase-credentials.json` in the project root
 
-3. Create a `.env` file in the project root (if needed for additional configuration)
+3. Create a `.env` file in the project root with the following variables:
+```
+FIREBASE_PROJECT_ID=your_project_id
+FIREBASE_PRIVATE_KEY_ID=your_private_key_id
+FIREBASE_PRIVATE_KEY=your_private_key
+FIREBASE_CLIENT_EMAIL=your_client_email
+FIREBASE_CLIENT_ID=your_client_id
+FIREBASE_CLIENT_X509_CERT_URL=your_client_x509_cert_url
+FIREBASE_TYPE=service_account
+FIREBASE_AUTH_URI=https://accounts.google.com/o/oauth2/auth
+FIREBASE_TOKEN_URI=https://oauth2.googleapis.com/token
+FIREBASE_AUTH_PROVIDER_X509_CERT_URL=https://www.googleapis.com/oauth2/v1/certs
+```
 
 ## Running the API
 
@@ -48,11 +60,12 @@ Once the server is running, visit:
 - Swagger UI: `http://localhost:8000/docs`
 - ReDoc: `http://localhost:8000/redoc`
 
-## Deployment
+## Local Development
 
-The API can be deployed to:
-- Render
-- AWS Lambda + API Gateway
-- Any other platform that supports Python applications
+For local development:
+1. Make sure you have Chrome installed
+2. Install Python dependencies
+3. Set up your Firebase credentials
+4. Run the server locally
 
-Make sure to set up the necessary environment variables and Firebase credentials in your deployment environment. 
+The API will be accessible at `http://localhost:8000` and can be used with your local development environment. 

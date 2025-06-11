@@ -52,6 +52,46 @@ def make_request(url, params=None, max_retries=3, delay=1):
     return None
 
 
+def clean_field_content(field_name: str, content: str) -> str:
+    """Clean field content by removing redundant section headers."""
+    if not content or content == "N/A":
+        return content
+
+    # Map of field names to their corresponding section headers
+    section_headers = {
+        "indications_and_usage": "INDICATIONS AND USAGE",
+        "mechanism_of_action": "MECHANISM OF ACTION",
+        "adverse_reactions": "ADVERSE REACTIONS",
+        "drug_interactions": "DRUG INTERACTIONS",
+        "dosage_and_administration": "DOSAGE AND ADMINISTRATION",
+        "contraindications": "CONTRAINDICATIONS",
+        "warnings_and_cautions": "WARNINGS AND CAUTIONS",
+        "boxed_warning": "BOXED WARNING",
+        "abuse": "ABUSE",
+        "dependence": "DEPENDENCE",
+        "spl_medguide": "MEDGUIDE",
+        "pregnancy": "PREGNANCY",
+        "pediatric_use": "PEDIATRIC USE",
+        "geriatric_use": "GERIATRIC USE",
+        "controlled_substance": "CONTROLLED SUBSTANCE",
+    }
+
+    # Get the section header for this field
+    header = section_headers.get(field_name)
+    if not header:
+        return content
+
+    # Check if content starts with the header
+    if content.upper().startswith(header):
+        # Remove the header and any following numbers/spaces
+        cleaned = content[len(header) :].strip()
+        # Remove any leading numbers and spaces
+        cleaned = cleaned.lstrip("0123456789. ")
+        return cleaned
+
+    return content
+
+
 def fetch_fda_label_data(brand_name: str, generic_name: str) -> Dict:
     """Fetch medication label data from OpenFDA API."""
     logger.info(f"Fetching FDA label data for {brand_name} ({generic_name})")
@@ -69,8 +109,8 @@ def fetch_fda_label_data(brand_name: str, generic_name: str) -> Dict:
     result = data["results"][0]
     logger.info(f"Successfully retrieved FDA label data for {brand_name}")
 
-    # Extract relevant fields
-    return {
+    # Extract and clean relevant fields
+    fields = {
         "indications_and_usage": (
             result.get("indications_and_usage", ["N/A"])[0]
             if result.get("indications_and_usage")
@@ -101,7 +141,7 @@ def fetch_fda_label_data(brand_name: str, generic_name: str) -> Dict:
             if result.get("adverse_reactions")
             else "N/A"
         ),
-        "abuse": (result.get("abuse", ["N/A"])[0] if result.get("abuse") else "N/A"),
+        "abuse": result.get("abuse", ["N/A"])[0] if result.get("abuse") else "N/A",
         "dependence": (
             result.get("dependence", ["N/A"])[0] if result.get("dependence") else "N/A"
         ),
@@ -144,6 +184,13 @@ def fetch_fda_label_data(brand_name: str, generic_name: str) -> Dict:
             else "N/A"
         ),
     }
+
+    # Clean each field
+    cleaned_fields = {
+        field: clean_field_content(field, content) for field, content in fields.items()
+    }
+
+    return cleaned_fields
 
 
 def get_rxcui(drug_name):
@@ -190,7 +237,7 @@ def load_orange_book_data():
     print("Loading Orange Book data...")
     # Load patent data
     patent_data = defaultdict(list)
-    with open("Orange_Data/patent.txt", "r") as f:
+    with open("api/Orange_Data/patent.txt", "r") as f:
         reader = csv.DictReader(f, delimiter="~")
         for row in reader:
             app_no = row["Appl_No"]
@@ -203,7 +250,7 @@ def load_orange_book_data():
 
     # Load exclusivity data
     exclusivity_data = defaultdict(list)
-    with open("Orange_Data/exclusivity.txt", "r") as f:
+    with open("api/Orange_Data/exclusivity.txt", "r") as f:
         reader = csv.DictReader(f, delimiter="~")
         for row in reader:
             app_no = row["Appl_No"]
@@ -216,14 +263,13 @@ def load_orange_book_data():
 
     # Load products data
     products_data = defaultdict(list)
-    with open("Orange_Data/products.txt", "r") as f:
+    with open("api/Orange_Data/products.txt", "r") as f:
         reader = csv.DictReader(f, delimiter="~")
         for row in reader:
             app_no = row["Appl_No"]
             products_data[app_no].append(
                 {
                     "applicant_full_name": row["Applicant_Full_Name"],
-                    "drug_manufacturer": row["Applicant_Full_Name"],
                 }
             )
 
@@ -249,8 +295,8 @@ def scrape_medications(medications: List[str]) -> List[Dict]:
     # Dictionary to store results
     medication_data = {}
 
-    for medication in medications:
-        logger.info(f"\nProcessing {medication}...")
+    for i, medication in enumerate(medications, 1):
+        logger.info(f"\nProcessing medication {i}/{len(medications)}: {medication}")
         try:
             # Get RxNorm data
             rxcui = get_rxcui(medication)
@@ -339,9 +385,6 @@ def scrape_medications(medications: List[str]) -> List[Dict]:
                     "current_patent_owner": product_details.get(
                         "applicant_full_name", "N/A"
                     ),
-                    "drug_manufacturer": product_details.get(
-                        "drug_manufacturer", "N/A"
-                    ),
                     "therapeutic_class": classes["broad_class"],
                     "broad_pharmacological_class": classes["narrow_class"],
                     "narrow_pharmacologic_class": classes["pharmacologic_class"],
@@ -399,6 +442,9 @@ def scrape_medications(medications: List[str]) -> List[Dict]:
                     ),
                     "information_for_patients_summary": generate_summary(
                         label_data.get("information_for_patients", "N/A")
+                    ),
+                    "warnings_and_cautions": generate_summary(
+                        label_data.get("warnings_and_cautions", "N/A")
                     ),
                     **label_data,  # Include all FDA label data
                 }
