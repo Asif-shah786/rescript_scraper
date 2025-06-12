@@ -127,14 +127,52 @@ def process_medications(medications):
                 }
             )
 
-            # Use an auto-generated document reference for draft_medications
-            doc_ref = db.collection("draft_medications").document()
-            # Ensure name field exists for querying and identification
-            medication_data["name"] = medication_data.get("name", "Unknown Medication")
-            batch.set(doc_ref, medication_data)
-            print(
-                f"Added medication with ID {doc_ref.id} (Name: {medication_data['name']}) to batch"
+            # Check if application number exists
+            app_number = medication_data.get("application_number")
+            if not app_number:
+                print(
+                    f"Warning: No application number for medication {medication_data.get('name', 'Unknown')}"
+                )
+                # Create new document for medications without application number
+                doc_ref = db.collection("draft_medications").document()
+                batch.set(doc_ref, medication_data)
+                print(
+                    f"Added new medication without application number: {medication_data.get('name', 'Unknown')}"
+                )
+                continue
+
+            # Query for existing medication with same application number
+            existing_docs = (
+                db.collection("draft_medications")
+                .where("application_number", "==", app_number)
+                .limit(1)
+                .get()
             )
+
+            if existing_docs:
+                # Update existing document
+                existing_doc = existing_docs[0]
+                existing_data = existing_doc.to_dict() or {}  # Handle None case
+
+                # Get existing update history or initialize new one
+                update_history = existing_data.get("update_history", [])
+                update_history.append(timestamp.isoformat())
+
+                # Add update history to medication data
+                medication_data["update_history"] = update_history
+
+                batch.set(existing_doc.reference, medication_data, merge=True)
+                print(
+                    f"Updated existing medication: {medication_data.get('name', 'Unknown')} (App Number: {app_number})"
+                )
+            else:
+                # Create new document with initial update history
+                medication_data["update_history"] = [timestamp.isoformat()]
+                doc_ref = db.collection("draft_medications").document()
+                batch.set(doc_ref, medication_data)
+                print(
+                    f"Added new medication: {medication_data.get('name', 'Unknown')} (App Number: {app_number})"
+                )
 
         # Add metadata to failed results (for local JSON only)
         for medication_data in failed_results:
@@ -157,9 +195,7 @@ def process_medications(medications):
         timestamp_str = datetime.now().strftime("%Y-%m-%d_%H-%M")
         output_file = os.path.join(runs_dir, f"medication_data_{timestamp_str}.json")
         with open(output_file, "w") as f:
-            json.dump(
-                results, f, indent=2, default=str
-            )  # Use default=str for datetime serialization
+            json.dump(results, f, indent=2, default=str)
         print(f"Results saved locally to {output_file}")
 
         print(f"\nSuccessfully processed {len(valid_results)} medications")
