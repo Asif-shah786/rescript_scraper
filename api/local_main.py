@@ -7,6 +7,7 @@ import sys
 from datetime import datetime, timezone
 import uuid
 import argparse
+from google.cloud.firestore_v1.base_query import FieldFilter
 
 # Add the parent directory to sys.path to import the scraper
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -127,32 +128,47 @@ def process_medications(medications):
                 }
             )
 
-            # Check if application number exists
-            app_number = medication_data.get("application_number")
-            if not app_number:
+            # Get name and generic name for uniqueness check
+            name = medication_data.get("name", "").lower().strip()
+            generic_name = medication_data.get("generic_name", "").lower().strip()
+            # Store lowercase versions in the data
+            medication_data["name"] = name
+            medication_data["generic_name"] = generic_name
+
+            print(f"\nDebug - Checking medication:")
+            print(f"Name: '{name}'")
+            print(f"Generic Name: '{generic_name}'")
+
+            if not name or not generic_name:
                 print(
-                    f"Warning: No application number for medication {medication_data.get('name', 'Unknown')}"
+                    f"Warning: Missing name or generic_name for medication {medication_data.get('name', 'Unknown')}"
                 )
-                # Create new document for medications without application number
+                # Create new document for medications without required fields
                 doc_ref = db.collection("draft_medications").document()
                 batch.set(doc_ref, medication_data)
                 print(
-                    f"Added new medication without application number: {medication_data.get('name', 'Unknown')}"
+                    f"Added new medication without complete identification: {medication_data.get('name', 'Unknown')}"
                 )
                 continue
 
-            # Query for existing medication with same application number
+            # Query for existing medication with same name and generic name
             existing_docs = (
                 db.collection("draft_medications")
-                .where("application_number", "==", app_number)
+                .where(filter=FieldFilter("name", "==", name))
+                .where(filter=FieldFilter("generic_name", "==", generic_name))
                 .limit(1)
                 .get()
             )
 
+            print(f"Debug - Found {len(existing_docs)} existing documents")
+
             if existing_docs:
                 # Update existing document
                 existing_doc = existing_docs[0]
-                existing_data = existing_doc.to_dict() or {}  # Handle None case
+                existing_data = existing_doc.to_dict() or {}
+                print(f"Debug - Existing document data:")
+                print(f"Name: '{existing_data.get('name', '')}'")
+                print(f"Generic Name: '{existing_data.get('generic_name', '')}'")
 
                 # Get existing update history or initialize new one
                 update_history = existing_data.get("update_history", [])
@@ -162,17 +178,13 @@ def process_medications(medications):
                 medication_data["update_history"] = update_history
 
                 batch.set(existing_doc.reference, medication_data, merge=True)
-                print(
-                    f"Updated existing medication: {medication_data.get('name', 'Unknown')} (App Number: {app_number})"
-                )
+                print(f"Updated existing medication: {name} (Generic: {generic_name})")
             else:
                 # Create new document with initial update history
                 medication_data["update_history"] = [timestamp.isoformat()]
                 doc_ref = db.collection("draft_medications").document()
                 batch.set(doc_ref, medication_data)
-                print(
-                    f"Added new medication: {medication_data.get('name', 'Unknown')} (App Number: {app_number})"
-                )
+                print(f"Added new medication: {name} (Generic: {generic_name})")
 
         # Add metadata to failed results (for local JSON only)
         for medication_data in failed_results:
@@ -216,14 +228,14 @@ if __name__ == "__main__":
     batch0 = [
         "Abilify",
         "Atorvastatin",
-        "Metformin",
-        "Lisinopril",
-        "Levothyroxine",
-        "Amlodipine",
-        "Metoprolol",
-        "Albuterol",
-        "Losartan",
-        "Omeprazole",
+        # "Metformin",
+        # "Lisinopril",
+        # "Levothyroxine",
+        # "Amlodipine",
+        # "Metoprolol",
+        # "Albuterol",
+        # "Losartan",
+        # "Omeprazole",
     ]
 
     # Split medications into batches of 50
